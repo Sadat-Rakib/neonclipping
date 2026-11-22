@@ -53,7 +53,12 @@ def attach(app,DATA,state,probe):
         with lock:
             record={**state.get(job,{}),**record}
             state[job]=record
-            temp=DATA/(job+'.state.tmp');temp.write_text(json.dumps(record),encoding='utf-8');temp.replace(DATA/(job+'.state.json'))
+            # The .state.json write is progress metadata only: a concurrent reader of the file
+            # (indexer, sync client, another tool) can make the replace fail with WinError 5.
+            # Losing one progress snapshot must not abort a long download/render job.
+            try:
+                temp=DATA/(job+'.state.tmp');temp.write_text(json.dumps(record),encoding='utf-8');temp.replace(DATA/(job+'.state.json'))
+            except OSError:pass
     # Completed work survives a restart; active work reports interruption.
     for f in DATA.glob('*.state.json'):
         try:

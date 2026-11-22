@@ -59,13 +59,16 @@ def geometry(name, top=.32, width=1080, height=1920):
 
 def render_graph(name, rects, top=.32, width=1080, height=1920, cam_fx=''):
     spec = geometry(name, top, width, height)
+    # format=yuv420p first: with -hwaccel auto (FFmpeg 9.1 on Windows, dxva2/cuda/d3d11va), hw-derived
+    # frames flowing straight into split/scale leave part of the picture uninitialized (solid green half).
+    # On an already-yuv420p source this is a passthrough no-op.
     if spec['mode'] == 'blur':
         bw,bh=max(2,width//8*2),max(2,height//8*2)
-        return f'[0:v]split=2[b][f];[b]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},boxblur=8:2,scale={width}:{height}[bg];[f]scale={width}:{height}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[base]'
+        return f'[0:v]format=yuv420p,split=2[b][f];[b]scale={bw}:{bh}:force_original_aspect_ratio=increase,crop={bw}:{bh},boxblur=8:2,scale={width}:{height}[bg];[f]scale={width}:{height}:force_original_aspect_ratio=decrease[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[base]'
     layers = spec['layers']; parts=[]
-    if len(layers)>1: parts.append('[0:v]split='+str(len(layers))+''.join(f'[s{i}]' for i in range(len(layers))))
+    if len(layers)>1: parts.append('[0:v]format=yuv420p,split='+str(len(layers))+''.join(f'[s{i}]' for i in range(len(layers))))
     for i, layer in enumerate(layers):
-        source = f'[s{i}]' if len(layers)>1 else '[0:v]'
+        source = f'[s{i}]' if len(layers)>1 else '[0:v]format=yuv420p,'
         crop = ''
         if layer['source'] != 'full':
             x,y,w,h = rects[0 if layer['source']=='cam' else 1]

@@ -135,6 +135,10 @@ def g_static():
     R.check(g, 'index.html served', lambda: ('<title>' in html, len(html)))
     ids = set(re.findall(r'''\$\(['"]([\w-]+)['"]\)''', js))
     have = set(re.findall(r'id="([\w-]+)"', html))
+    # IDs created at runtime by the front-end scripts (extras.js builds the saved-clip editor controls)
+    for script in (js, (ROOT / 'extras.js').read_text(encoding='utf-8')):
+        have |= set(re.findall(r'''\.id\s*=\s*['"]([\w-]+)['"]''', script))
+        have |= set(re.findall(r'''id\\?=["']([\w-]+)\\?["']''', script))
     missing = sorted(ids - have)
     R.check(g, 'every $("id") used by app.js exists in index.html', lambda: (not missing, 'missing: %s' % missing))
     R.check(g, 'app.js syntax (node --check)', lambda: (subprocess.run(['node', '--check', str(ROOT / 'app.js')], capture_output=True).returncode == 0, ''))
@@ -242,7 +246,7 @@ def g_edit():
     batch = 'e2ebatch' + str(int(time.time()))
     made = []
     for i in range(3):
-        st, r = api('/export', {'id': sid, 'start': start + i, 'end': start + i + 5, 'layout': 'stack', 'captions': True, 'caption_style': 'gta',
+        st, r = api('/export', {'id': sid, 'start': start + i, 'end': start + i + 6, 'layout': 'stack', 'captions': True, 'caption_style': 'gta',
                                 'title': f'T{i}', 'hook': f'H{i}', 'words': WORDS, 'batch_id': batch, 'source_url': '', **BOX})
         made.append(wait_job(r['job'], limit=120)['file'])
     R.check(g, 'edit panel data for a saved clip', lambda: (lambda e: (e['video_clips'] == 3, e.get('video_clips')))(api(f'/clips/{made[0]}/edit')[1]))
