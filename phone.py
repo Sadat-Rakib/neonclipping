@@ -30,8 +30,26 @@ MAX_TRIES, LOCK_SECONDS = 5, 600
 COOKIE = 'nc_phone'
 
 
+def _trust_proxy():
+    """NEONCLIPPING_TRUST_PROXY=1: treat private/link-local client addresses as the PC itself.
+
+    For cloud sandboxes (GitHub Codespaces, containers) where the app is reached through an
+    authenticated internal forwarding proxy, the socket peer is the proxy's private IP, not
+    127.0.0.1. Access is still gated by the platform's own login there; on a normal PC this is
+    off and nothing changes."""
+    return os.environ.get('NEONCLIPPING_TRUST_PROXY') == '1'
+
+
 def is_local(host):
-    return host in LOCAL or str(host).startswith('127.')
+    if host in LOCAL or str(host).startswith('127.'):
+        return True
+    if _trust_proxy():
+        try:
+            import ipaddress
+            return ipaddress.ip_address(str(host)).is_private
+        except ValueError:
+            return False
+    return False
 
 
 def allowed(path):
